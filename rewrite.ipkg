@@ -1,0 +1,36 @@
+package rewrite
+
+author = Giuseppe Lomurno
+brief = "Verified directed graph rewriting."
+version = 0.0.1-alpha
+readme = README.md
+license = BSD3
+maintainer = Giuseppe Lomurno
+
+executable = "rewrite-exe"
+main = Main
+pkgs = contrib
+     , graphviz
+     , lightyear
+
+modules = Main
+        , Data.Fin.Extra
+        , Data.Graph
+        , Data.Graph.Morphism
+        , Data.Graph.Pushout
+        , Data.Graph.Subgraph
+        , Data.Graph.TypedGraph
+        , Data.Graph.VF2
+        , Data.Vect.Extra
+        , Data.Vect.Subset
+        , Decidable.Extra
+        , Graphviz.Extra
+        , Parser
+        , Rewrite
+        , Rewrite.Interface
+        , Rewrite.Simple
+        , Rewrite.Typed
+        , Rewrite.Utils
+        , Test.All
+
+tests = Test.All.allTests

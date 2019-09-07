@@ -1,0 +1,19 @@
+{
+  "command": "APPLY",
+  "matchIndex": 0,
+  "graph": "digraph {\n  1 2 3 6 7;\n  1 -> 2 [label=1];\n  1 -> 3 [label=2];\n  3 -> 2 [label=3];\n  1 -> 6 [label=4];\n  6 -> 7 [label=5];\n  2 -> 7 [label=6];\n}",
+  "rule": {
+    "pre": "digraph {\n  \"1L\" \"2L\" \"3L\";\n  \"1L\" -> \"2L\" [label=1];\n  \"1L\" -> \"3L\" [label=2];\n  \"3L\" -> \"2L\" [label=3];\n}",
+    "glue": "digraph {\n  \"1K\" \"2K\";\n}",
+    "post": "digraph {\n  \"1R\" \"2R\" \"4R\" \"5R\";\n  \"1R\" -> \"4R\" [label=1];\n  \"1R\" -> \"5R\" [label=2];\n  \"4R\" -> \"2R\" [label=3];\n  \"5R\" -> \"2R\" [label=4];\n}",
+    "gluePreMorph": {
+      "1K": "1L",
+      "2K": "2L"
+    },
+    "gluePostMorph": {
+      "1K": "1R",
+      "2K": "2R"
+    }
+  },
+  "mode": "simple"
+}
