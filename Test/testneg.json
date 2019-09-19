@@ -7,7 +7,7 @@
     "pre": "digraph { 1; 2; 3; 1 -> 2 [label=1]; 1 -> 3 [label=2]; 3 -> 2 [label=3]; }",
     "glue": "digraph { 1; 2; }",
     "post": "digraph { 1; 2; 4; 5; 1 -> 4 [label=10]; 1 -> 5 [label=11]; 4 -> 2 [label=12]; 5 -> 2 [label=13]; }",
-    "neg": "digraph { 1; 2; 3; 1 -> 1 [label=111]; 1 -> 2 [label=1]; 1 -> 3 [label=2]; 3 -> 2 [label=3]; }",
+    "neg": "digraph { 1; 2; 3; 4; 3 -> 4 [label=111]; 1 -> 2 [label=1]; 1 -> 3 [label=2]; 3 -> 2 [label=3]; }",
     "gluePreMorph": {
       "1": "1",
       "2": "2"

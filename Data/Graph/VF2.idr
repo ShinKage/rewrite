@@ -101,9 +101,7 @@ private
 predSuccFeasibility : Fin n -> Fin n' -> VF2State n n'
                    -> Graph n m vs es -> Graph n' m' vs' es' -> Bool
 predSuccFeasibility v1 v2 (MkState depth core_1 core_2 in_1 out_1 in_2 out_2) g1 g2
-  = all (\v => maybe True (\x => elem x (predecessors v2 g2)) (index v core_1)) (predecessors v1 g1)
-      && all (\v => maybe True (\x => elem x (predecessors v1 g1)) (index v core_2)) (predecessors v2 g2)
-      && all (\v => maybe True (\x => elem x (successors v2 g2)) (index v core_1)) (successors v1 g1)
+  = all (\v => maybe True (\x => elem x (predecessors v1 g1)) (index v core_2)) (predecessors v2 g2)
       && all (\v => maybe True (\x => elem x (successors v1 g1)) (index v core_2)) (successors v2 g2)
 
 private

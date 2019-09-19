@@ -181,20 +181,21 @@ singleResultJson : ExGraph String String -> JSON
 singleResultJson (_ ** _ ** _ ** _ ** g)
   = JObject [("result", JString (prettyGraph $ graphToGraphviz $ debugVertices g))]
 
+singleErrorJson : AppError -> JSON
+singleErrorJson err = JObject [("error", JString (appErrorMessage err))]
+
 main : IO ()
 main = do
   (_ :: f :: _) <- getArgs | putStrLn "Must provide a JSON file as argument"
   Right l <- readFile f | putStrLn "Must provide a valid JSON file as argument"
-  case maybeToEither JSONParseError (parse l) >>= parseCommand of
-    Right (Find (_ ** _ ** _ ** _ ** g) (_ ** _ ** _ ** _ ** sub)) => do
-      putStrLn . format 2 $ findResponse g sub
-    Right (ApplyRule (_ ** _ ** _ ** _ ** g) rule i) => do
-      putStrLn $ either rewriteErrorMessage (format 2 . singleResultJson) $ singleRewrite g rule i
+  putStrLn $ format 2 $ case maybeToEither JSONParseError (parse l) >>= parseCommand of
+    Right (Find (_ ** _ ** _ ** _ ** g) (_ ** _ ** _ ** _ ** sub)) => findResponse g sub
+    Right (ApplyRule (_ ** _ ** _ ** _ ** g) rule i) =>
+      either (singleErrorJson . RewritingError) singleResultJson (singleRewrite g rule i)
     Right (ApplyNegRule (_ ** _ ** _ ** _ ** g) rule i) => do
-      putStrLn $ either rewriteErrorMessage (format 2 . singleResultJson) $ singleRewrite g rule i
+      either (singleErrorJson . RewritingError) singleResultJson (singleRewrite g rule i)
     Right (ApplyIntRule (_ ** _ ** _ ** _ ** g) rule (_ ** _ ** _ ** _ ** j) jMorph i) => do
-      putStrLn $ either rewriteErrorMessage (format 2 . singleResultJson) $ singleRewrite g rule j jMorph i
+      either (singleErrorJson . RewritingError) singleResultJson (singleRewrite g rule j jMorph i)
     Right (ApplyTypedRule (_ ** _ ** _ ** _ ** g) rule tMorph i) => do
-      putStrLn $ either rewriteErrorMessage (format 2 . singleResultJson) $ singleRewrite g rule tMorph i
-    Left err => do
-      putStrLn $ appErrorMessage err
+      either (singleErrorJson . RewritingError) singleResultJson (singleRewrite g rule tMorph i)
+    Left err => singleErrorJson err

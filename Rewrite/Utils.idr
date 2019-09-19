@@ -15,6 +15,7 @@ data RewriteError = NotInjective String String
                   | FailedConversion String String
                   | CommutativeError String String
                   | NotAllowed String String
+                  | NonEmptyNegative
 
 rewriteErrorMessage : RewriteError -> String
 rewriteErrorMessage (NotInjective from to)     = "The morphism " ++ from ++ " -> " ++ to ++ " is not injective"
@@ -23,6 +24,7 @@ rewriteErrorMessage (IndexOutOfBounds i m)     = "The index " ++ show i ++ " is 
 rewriteErrorMessage (FailedConversion from to) = "Failure trying to build the morphism " ++ from ++ " -> " ++ to
 rewriteErrorMessage (CommutativeError from to) = "Path " ++ from ++ " and " ++ to ++ " are not commutative"
 rewriteErrorMessage (NotAllowed from to)       = "The morphism " ++ from ++ " -> " ++ to ++ " is not allowed"
+rewriteErrorMessage NonEmptyNegative           = "There must not be any valid match"
 
 maybeTuple : (Maybe a, Maybe b) -> Maybe (a, b)
 maybeTuple (a, b) = [ (a', b') | a' <- a, b' <- b ]
@@ -120,7 +122,7 @@ eitherGuard err True = Right ()
 checkInjective : String -> String -> Vect n (Fin m) -> Either RewriteError ()
 checkInjective _ _ [] = Right ()
 checkInjective from to (x :: xs) = eitherGuard (NotInjective from to) $
-                                   all (\(x, y) => x /= y) $ sort $ zip (toList $ x :: xs) (toList xs)
+  all (\(x, y) => x /= y) $ sort $ zip (toList $ x :: xs) (toList xs)
 
 checkPath : String -> String -> Vect n (Fin m) -> Vect n (Fin m) -> Either RewriteError ()
 checkPath from to p1 p2 = eitherGuard (CommutativeError from to) $ p1 == p2
