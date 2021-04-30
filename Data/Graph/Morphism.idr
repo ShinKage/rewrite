@@ -2,173 +2,213 @@
 module Data.Graph.Morphism
 
 import public Data.Graph
-import Data.Vect.Extra
+import Data.List
+import Data.List.Pos
+import public Data.List.Morphism
+import Decidable.Equality
+import public Syntax.PreorderReasoning
 
 %default total
-%access export
 
-||| Represents a morphism between graphs as a mapping of vertices and edges.
+eqEq : (eq1 : a = b) -> (eq2 : a = b) -> eq1 = eq2
+eqEq Refl Refl = Refl
+
+||| Type of functions between vertices and edges of graphs.
 public export
-data Morphism : (g : Graph n m vs es) -> (g' : Graph n' m' vs' es') -> Type where
-  ||| Morphism constructor
-  ||| @vmap Morphism between vertices
-  ||| @emap Morphism between edges
-  Morph : {g : Graph n m vs es} -> {g' : Graph n' m' vs' es'} -> (vmap : Vect n (Fin n'))
-       -> (emap : Vect m (Fin m')) -> Morphism g g'
+record Morphism {0 vertex, vertex', edge, edge' : Type} (0 g : Graph vertex edge) (0 g' : Graph vertex' edge') where
+  constructor MkMorphism
+  vertexMorphism : ListMorphism g.vertices g'.vertices
+  edgeMorphism   : ListMorphism g.edges g'.edges
 
-namespace Source
-  ||| Satisfied if a given morphism between graphs preserves the sources of edges,
-  ||| formally if e = (s, t) in g then f(e) = (f(s), t') in g'.
-  ||| @g   The original graph
-  ||| @g'  The mapped graph
-  ||| @mor The morphism from `g` to `g'`
-  data PreserveSource : (g : Graph n m vs es) -> (g' : Graph n' m' vs' es')
-                     -> (mor : Morphism g g') -> Type where
-    Empty : PreserveSource Empty g' mor
-    Edge  : source e g' = index s vmap -> PreserveSource g g' (Morph vmap emap)
-         -> PreserveSource (Edge s t g) g' (Morph vmap (e :: emap))
+namespace Homomorphism
+  public export
+  record Homomorphism {0 vertex, vertex', edge, edge' : Type} (0 g : Graph vertex edge) (0 g' : Graph vertex' edge') where
+    constructor MkHomomorphism
+    vertexMorphism : ListMorphism g.vertices g'.vertices
+    edgeMorphism : ListMorphism g.edges g'.edges
+    0 isSourceHomomorphic : g'.source . edgeMorphism = vertexMorphism . g.source
+    0 isTargetHomomorphic : g'.target . edgeMorphism = vertexMorphism . g.target
 
-  ||| If the source is not preserved for one edge than the predicate is false.
-  notEqualSourceNotPreserve : Not (source e g' = index s vmap)
-                           -> Not (PreserveSource (Edge s t g) g' (Morph vmap (e :: emap)))
-  notEqualSourceNotPreserve contra (Edge prf _) = contra prf
+  ||| Decision procedure for `Homomorphism`.
+  public export
+  isHomomorphism : {g : Graph vertex edge} -> {g' : Graph vertex' edge'} -> ListMorphism g.vertices g'.vertices -> ListMorphism g.edges g'.edges -> Maybe (Homomorphism g g')
+  isHomomorphism vMor eMor =
+    case (decEq (g'.source . eMor) (vMor . g.source), decEq (g'.target . eMor) (vMor . g.target)) of
+         (Yes srcPrf, Yes tgtPrf) => Just (MkHomomorphism vMor eMor srcPrf tgtPrf)
+         (No contra, _) => Nothing
+         (_, No contra) => Nothing
 
-  ||| If the predicate is not valid for a given graph than is not valid for a
-  ||| graph with additional edges.
-  notLaterSourceNotPreserve : Not (PreserveSource g g' (Morph vmap emap))
-                           -> Not (PreserveSource (Edge s t g) g' (Morph vmap (e :: emap)))
-  notLaterSourceNotPreserve contra (Edge _ later) = contra later
+  public export
+  DecEq (Homomorphism g g') where
+    decEq (MkHomomorphism v e s t) (MkHomomorphism v' e' s' t') =
+      case (decEq v v', decEq e e') of
+           (Yes Refl, Yes Refl) => rewrite eqEq s s' in rewrite eqEq t t' in Yes Refl
+           (No contra, _) => No (\case Refl => contra Refl)
+           (_, No contra) => No (\case Refl => contra Refl)
 
-  ||| A decision procedure for the `PreserveSource` predicate.
-  ||| @g   The original graph
-  ||| @g'  The mapped graph
-  ||| @mor The morphism from `g` to `g'`
-  preserveSource : (g : Graph n m vs es) -> (g' : Graph n' m' vs' es') -> (mor : Morphism g g')
-                -> Dec (PreserveSource g g' mor)
-  preserveSource Empty g' _ = Yes Empty
-  preserveSource (Edge s _ g) g' (Morph vmap (e :: emap)) with (decEq (source e g') (index s vmap))
-    preserveSource (Edge s _ g) g' (Morph vmap (e :: emap))
-      | (Yes decprf) with (preserveSource g g' (Morph vmap emap))
-        preserveSource (Edge s _ g) g' (Morph vmap (e :: emap))
-          | (Yes decprf) | (Yes prf) = Yes (Edge decprf prf)
-        preserveSource (Edge s _ g) g' (Morph vmap (e :: emap))
-          | (Yes decprf) | (No contra) = No (notLaterSourceNotPreserve contra)
-    preserveSource (Edge s _ g) g' (Morph vmap (e :: emap))
-      | (No contra) = No (notEqualSourceNotPreserve contra)
+  ||| Composes two morphisms between graphs.
+  public export
+  compose : {0 g1 : Graph vertex1 edge1} -> {0 g2 : Graph vertex2 edge2} -> {0 g3 : Graph vertex3 edge3}
+         -> Homomorphism g2 g3 -> Homomorphism g1 g2 -> Homomorphism g1 g3
+  compose f g =
+    MkHomomorphism (f.vertexMorphism . g.vertexMorphism) (f.edgeMorphism . g.edgeMorphism)
+                   (Calc $
+                      |~ g3.source . (f.edgeMorphism . g.edgeMorphism)
+                      ~~ (g3.source . f.edgeMorphism) . g.edgeMorphism ...(composeAssociative g3.source f.edgeMorphism g.edgeMorphism)
+                      ~~ (f.vertexMorphism . g2.source) . g.edgeMorphism ...(cong (. g.edgeMorphism) f.isSourceHomomorphic)
+                      ~~ f.vertexMorphism . (g2.source . g.edgeMorphism) ...(sym $ composeAssociative f.vertexMorphism g2.source g.edgeMorphism)
+                      ~~ f.vertexMorphism . (g.vertexMorphism . g1.source) ...(cong (f.vertexMorphism .) g.isSourceHomomorphic)
+                      ~~ (f.vertexMorphism . g.vertexMorphism) . g1.source ...(composeAssociative f.vertexMorphism g.vertexMorphism g1.source))
+                   (Calc $
+                      |~ g3.target . (f.edgeMorphism . g.edgeMorphism)
+                      ~~ (g3.target . f.edgeMorphism) . g.edgeMorphism ...(composeAssociative g3.target f.edgeMorphism g.edgeMorphism)
+                      ~~ (f.vertexMorphism . g2.target) . g.edgeMorphism ...(cong (. g.edgeMorphism) f.isTargetHomomorphic)
+                      ~~ f.vertexMorphism . (g2.target . g.edgeMorphism) ...(sym $ composeAssociative f.vertexMorphism g2.target g.edgeMorphism)
+                      ~~ f.vertexMorphism . (g.vertexMorphism . g1.target) ...(cong (f.vertexMorphism .) g.isTargetHomomorphic)
+                      ~~ (f.vertexMorphism . g.vertexMorphism) . g1.target ...(composeAssociative f.vertexMorphism g.vertexMorphism g1.target))
 
-namespace Target
-  ||| Satisfied if a given morphism between graphs preserves the targets of edges,
-  ||| formally if e = (s, t) in g then f(e) = (s', f(t)) in g'.
-  ||| @g   The original graph
-  ||| @g'  The mapped graph
-  ||| @mor The morphism from `g` to `g'`
-  data PreserveTarget : (g : Graph n m vs es) -> (g' : Graph n' m' vs' es')
-                     -> (mor : Morphism g g') -> Type where
-    Empty : PreserveTarget Empty g' mor
-    Edge  : target e g' = index t vmap -> PreserveTarget g g' (Morph vmap emap)
-         -> PreserveTarget (Edge s t g) g' (Morph vmap (e :: emap))
+  ||| Composes two morphisms between graphs.
+  public export
+  (.) : {0 g1 : Graph vertex1 edge1} -> {0 g2 : Graph vertex2 edge2} -> {0 g3 : Graph vertex3 edge3}
+     -> Homomorphism g2 g3 -> Homomorphism g1 g2 -> Homomorphism g1 g3
+  (.) = compose
 
-  ||| If the source is not preserved for one edge than the predicate is false.
-  notEqualTargetNotPreserve : Not (target e g' = index t vmap)
-                           -> Not (PreserveTarget (Edge s t g) g' (Morph vmap (e :: emap)))
-  notEqualTargetNotPreserve contra (Edge prf _) = contra prf
+  ||| Returns the identity morphism for a given graph.
+  public export
+  identity : (g : Graph vertex edge) -> Homomorphism g g
+  identity g =
+    MkHomomorphism (identity g.vertices) (identity g.edges)
+                   (rewrite composeRightUnit g.source in
+                    rewrite composeLeftUnit g.source in Refl)
+                   (rewrite composeRightUnit g.target in
+                    rewrite composeLeftUnit g.target in Refl)
 
-  ||| If the predicate is not valid for a given graph than is not valid for a
-  ||| graph with additional edges.
-  notLaterTargetNotPreserve : Not (PreserveTarget g g' (Morph vmap emap))
-                           -> Not (PreserveTarget (Edge s t g) g' (Morph vmap (e :: emap)))
-  notLaterTargetNotPreserve contra (Edge _ later) = contra later
+  ||| Proof that that composition is associative for graph morphisms.
+  public export
+  composeAssociative : {0 g1 : Graph vertex1 edge1} -> {0 g2 : Graph vertex2 edge2} -> {0 g3 : Graph vertex3 edge3} -> {0 g4 : Graph vertex4 edge4}
+                    -> (f : Homomorphism g3 g4) -> (g : Homomorphism g2 g3) -> (h : Homomorphism g1 g2)
+                    -> compose f (compose g h) = compose (compose f g) h
+  composeAssociative f g h =
+    rewrite composeAssociative f.vertexMorphism g.vertexMorphism h.vertexMorphism in
+    rewrite composeAssociative f.edgeMorphism g.edgeMorphism h.edgeMorphism in Refl
 
-  ||| A decision procedure for the `PreserveTarget` predicate.
-  ||| @g   The original graph
-  ||| @g'  The mapped graph
-  ||| @mor The morphism from `g` to `g'`
-  preserveTarget : (g : Graph n m vs es) -> (g' : Graph n' m' vs' es') -> (mor : Morphism g g')
-                -> Dec (PreserveTarget g g' mor)
-  preserveTarget Empty g' _ = Yes Empty
-  preserveTarget (Edge _ t g) g' (Morph vmap (e :: emap)) with (decEq (target e g') (index t vmap))
-    preserveTarget (Edge _ t g) g' (Morph vmap (e :: emap))
-      | (Yes decprf) with (preserveTarget g g' (Morph vmap emap))
-        preserveTarget (Edge _ t g) g' (Morph vmap (e :: emap))
-          | (Yes decprf) | (Yes prf) = Yes (Edge decprf prf)
-        preserveTarget (Edge _ t g) g' (Morph vmap (e :: emap))
-          | (Yes decprf) | (No contra) = No (notLaterTargetNotPreserve contra)
-    preserveTarget (Edge _ t g) g' (Morph vmap (e :: emap))
-      | (No contra) = No (notEqualTargetNotPreserve contra)
+  ||| Proof that identity is the left unit of composition for graph morphisms.
+  public export
+  composeLeftUnit : {0 g : Graph vertex edge} -> {0 g' : Graph vertex' edge'}
+                 -> (f : Homomorphism g g')
+                 -> compose (identity g') f = f
+  composeLeftUnit f =
+    rewrite composeLeftUnit f.vertexMorphism in
+    rewrite composeLeftUnit f.edgeMorphism in believe_me {a = f = f} Refl
+      -- TODO: Find a way to match on the proofs inside f
 
-||| Satisfied if a given morphism between to graph is a Homomorphism, in other
-||| words the morphism must preserve both source and targets of edges.
-|||
-||| @g   The original graph
-||| @g'  The mapped graph
-||| @mor The morphism from `g` to `g'`
-data Homomorphism : (g : Graph n m vs es) -> (g' : Graph n' m' vs' es') -> (mor : Morphism g g')
-                 -> Type where
-  Homo : PreserveSource g g' mor -> PreserveTarget g g' mor -> Homomorphism g g' mor
+  ||| Proof that identity is the right unit of composition for graph morphisms.
+  public export
+  composeRightUnit : {0 g : Graph vertex edge} -> {0 g' : Graph vertex' edge'}
+                  -> (f : Homomorphism g g')
+                  -> compose f (identity g) = f
+  composeRightUnit f =
+    rewrite composeRightUnit f.vertexMorphism in
+    rewrite composeRightUnit f.edgeMorphism in believe_me {a = f = f} Refl
+      -- TODO: Find a way to match on the proofs inside f
 
-||| If the morphism does not preserve sources than it is not an homomorphism.
-notPreserveSourceNotHomomorphism : Not (PreserveSource g g' mor) -> Not (Homomorphism g g' mor)
-notPreserveSourceNotHomomorphism contra (Homo s _) = contra s
+namespace Isomorphism
+  ||| Type of isomorphisms between simple directed (hyper-)graphs.
+  public export
+  record Isomorphism {0 vertex, vertex', edge, edge' : Type} (0 g : Graph vertex edge) (0 g' : Graph vertex' edge') where
+    constructor MkIsomorphism
+    from : Homomorphism g g'
+    to : Homomorphism g' g
+    0 fromToIdentity : compose from to = identity g'
+    0 toFromIdentity : compose to from = identity g
 
-||| If the morphism does not preserve targets than it is not an homomorphism.
-notPreserveTargetNotHomomorphism : Not (PreserveTarget g g' mor) -> Not (Homomorphism g g' mor)
-notPreserveTargetNotHomomorphism contra (Homo _ t) = contra t
+  ||| Decision procedure for `Isomorphism`.
+  public export
+  isIsomorphism : (g : Graph vertex edge) -> (g' : Graph vertex edge) -> Homomorphism g g' -> Homomorphism g' g -> Maybe (Isomorphism g g')
+  isIsomorphism g g' from to =
+    case (decEq (compose from to) (identity g'), decEq (compose to from) (identity g)) of
+         (Yes fromToPrf, Yes toFromPrf) => Just (MkIsomorphism from to fromToPrf toFromPrf)
+         (No contra, _) => Nothing
+         (_, No contra) => Nothing
 
-||| A decision procedure for `Homomorphism` predicate.
-|||
-||| @g The original graph
-||| @g' The mapped graph
-||| @mor The morphism from `g` to `g'`
-isHomomorphism : (g : Graph n m vs es) -> (g' : Graph n' m' vs' es') -> (mor : Morphism g g')
-              -> Dec (Homomorphism g g' mor)
-isHomomorphism g g' mor with (preserveSource g g' mor)
-  isHomomorphism g g' mor | (Yes s) with (preserveTarget g g' mor)
-    isHomomorphism g g' mor | (Yes s) | (Yes t) = Yes (Homo s t)
-    isHomomorphism g g' mor | (Yes s) | (No contra) = No (notPreserveTargetNotHomomorphism contra)
-  isHomomorphism g g' mor | (No contra) = No (notPreserveSourceNotHomomorphism contra)
+  public export
+  DecEq (Isomorphism g g') where
+    decEq (MkIsomorphism from to fromTo toFrom) (MkIsomorphism from' to' fromTo' toFrom') =
+      case (decEq from from', decEq to to') of
+           (Yes Refl, Yes Refl) => rewrite eqEq fromTo fromTo' in rewrite eqEq toFrom toFrom' in Yes Refl
+           (No contra, _) => No (\case Refl => contra Refl)
+           (_, No contra) => No (\case Refl => contra Refl)
 
-||| Returns the identity morphism for a given graph.
-||| @g The graph
-idMorphism : (g : Graph n m vs es) -> Morphism g g
-idMorphism g = Morph range range
+  ||| Composes two isomorphisms between graphs.
+  public export
+  compose : Isomorphism g2 g3 -> Isomorphism g1 g2 -> Isomorphism g1 g3
+  compose f g =
+    MkIsomorphism (compose f.from g.from)
+                  (compose g.to f.to)
+                  (rewrite sym $ composeAssociative f.from g.from (compose g.to f.to) in
+                   rewrite cong (\z => compose f.from z) $ composeAssociative g.from g.to f.to in
+                   rewrite cong (\z => compose f.from (compose z f.to)) g.fromToIdentity in
+                   rewrite cong (\z => compose f.from z) $ composeLeftUnit f.to in
+                   rewrite f.fromToIdentity in Refl)
+                  (rewrite sym $ composeAssociative g.to f.to (compose f.from g.from) in
+                   rewrite cong (\z => compose g.to z) $ composeAssociative f.to f.from g.from in
+                   rewrite cong (\z => compose g.to (compose z g.from)) f.toFromIdentity in
+                   rewrite cong (\z => compose g.to z) $ composeLeftUnit g.from in
+                   rewrite g.toFromIdentity in Refl)
 
-||| Satisfied if a given pair of morphisms make up an isomorphism between the two graphs.
-||| @g      The first graph
-||| @g'     The second graph
-||| @mor    The morphism from the first to the second graph
-||| @invMor The morphism from the second to the first graph
-data Isomorphism : (g : Graph n m vs es)
-                -> (g' : Graph n m vs' es')
-                -> (mor : Morphism g g')
-                -> (invMor : Morphism g' g)
-                -> Type where
-  Iso : invertFun vmap = invvmap -> invertFun emap = invemap
-     -> Isomorphism g g' (Morph vmap emap) (Morph invvmap invemap)
+  ||| Composes two isomorphisms between graphs.
+  public export
+  (.) : {0 g1 : Graph vertex1 edge1} -> {0 g2 : Graph vertex2 edge2} -> {0 g3 : Graph vertex3 edge3}
+     -> Isomorphism g2 g3 -> Isomorphism g1 g2 -> Isomorphism g1 g3
+  (.) = compose
 
-||| If the function between the source of the vertices is not invertible that it is not
-||| an isomorphism.
-noSourceInverse : Not (invertFun vmap = invvmap)
-               -> Not (Isomorphism g g' (Morph vmap emap) (Morph invvmap invemap))
-noSourceInverse contra (Iso s _) = contra s
+  ||| Returns the identity isomorphism for a specific graph.
+  public export
+  identity : (g : Graph vertex edge) -> Isomorphism g g
+  identity g =
+    MkIsomorphism (identity g) (identity g)
+                  (rewrite composeLeftUnit (identity g.vertices) in
+                   rewrite composeLeftUnit (identity g.edges) in
+                   rewrite composeRightUnit g.source in
+                   rewrite composeRightUnit g.target in
+                   Refl)
+                  (rewrite composeLeftUnit (identity g.vertices) in
+                   rewrite composeLeftUnit (identity g.edges) in
+                   rewrite composeRightUnit g.source in
+                   rewrite composeRightUnit g.target in
+                   Refl)
 
-||| If the function between the target of the vertices is not invertible that it is not
-||| an isomorphism.
-noTargetInverse : Not (invertFun emap = invemap)
-               -> Not (Isomorphism g g' (Morph vmap emap) (Morph invvmap invemap))
-noTargetInverse contra (Iso _ t) = contra t
+  ||| Proof that composition is associative for isomorphisms between graphs.
+  public export
+  composeAssociative : {0 g1 : Graph vertex1 edge1} -> {0 g2 : Graph vertex2 edge2} -> {0 g3 : Graph vertex3 edge3} -> {0 g4 : Graph vertex4 edge4}
+                    -> (f : Isomorphism g3 g4) -> (g : Isomorphism g2 g3) -> (h : Isomorphism g1 g2)
+                    -> compose f (compose g h) = compose (compose f g) h
+  composeAssociative f g h =
+    rewrite composeAssociative f.from.vertexMorphism g.from.vertexMorphism h.from.vertexMorphism in
+    rewrite composeAssociative f.from.edgeMorphism g.from.edgeMorphism h.from.edgeMorphism in
+    rewrite composeAssociative h.to.vertexMorphism g.to.vertexMorphism f.to.vertexMorphism in
+    rewrite composeAssociative h.to.edgeMorphism g.to.edgeMorphism f.to.edgeMorphism in Refl
 
-||| Decision procedure for isomorphisms.
-||| @g      The first graph
-||| @g'     The second graph
-||| @mor    The morphism from the first to the second graph
-||| @invMor The morphism from the second to the first graph
-isIsomorphism : (g : Graph n m vs es) -> (g' : Graph n m vs' es') -> (mor : Morphism g g')
-             -> (invMor : Morphism g' g) -> Dec (Isomorphism g g' mor invMor)
-isIsomorphism g g' (Morph vmap emap) (Morph invvmap invemap) with (decEq (invertFun vmap) invvmap)
-  isIsomorphism g g' (Morph vmap emap) (Morph invvmap invemap) | Yes vprf with (decEq (invertFun emap) invemap)
-    isIsomorphism g g' (Morph vmap emap) (Morph invvmap invemap) | Yes vprf | Yes eprf
-      = Yes (Iso vprf eprf)
-    isIsomorphism g g' (Morph vmap emap) (Morph invvmap invemap) | Yes vprf | No contra
-      = No (noTargetInverse contra)
-  isIsomorphism g g' (Morph vmap emap) (Morph invvmap invemap) | No contra
-      = No (noSourceInverse contra)
+  ||| Proof that identity is the left unit of composition for graph isomorphisms.
+  public export
+  composeLeftUnit : {0 g : Graph vertex edge} -> {0 g' : Graph vertex' edge'}
+                 -> (f : Isomorphism g g')
+                 -> compose (identity g') f = f
+  composeLeftUnit f =
+    rewrite composeLeftUnit f.from.vertexMorphism in
+    rewrite composeLeftUnit f.from.edgeMorphism in
+    rewrite composeRightUnit f.to.vertexMorphism in
+    rewrite composeRightUnit f.to.edgeMorphism in believe_me {a = f = f} Refl
+      -- TODO: Find a way to match on the proofs inside f
+
+  ||| Proof that identity is the right unit of composition for graph isomorphisms.
+  public export
+  composeRightUnit : {0 g : Graph vertex edge} -> {0 g' : Graph vertex' edge'}
+                  -> (f : Isomorphism g g')
+                  -> compose f (identity g) = f
+  composeRightUnit f =
+    rewrite composeRightUnit f.from.vertexMorphism in
+    rewrite composeRightUnit f.from.edgeMorphism in
+    rewrite composeLeftUnit f.to.vertexMorphism in
+    rewrite composeLeftUnit f.to.edgeMorphism in believe_me {a = f = f} Refl
+      -- TODO: Find a way to match on the proofs inside f

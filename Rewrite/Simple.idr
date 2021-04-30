@@ -1,54 +1,82 @@
 module Rewrite.Simple
 
-import Data.Vect.Extra
-import Data.Vect.Subset
 import Data.Graph
-import Data.Graph.Morphism
 import Data.Graph.Pushout
 import Data.Graph.Subgraph
 import Data.Graph.VF2
 import Rewrite.Utils
+import Decidable.Equality
 
-%default covering
-%access export
+singleRewrite : (g : Graph vertex edge) -> RewriteRule vertex edge
+             -> (vertex -> vertex) -> (edge -> edge)
+             -> List (DoublePushout vertex edge)
+singleRewrite g (MkRewriteRule l k r ktol ktor) vertexRelabel edgeRelabel = do
+  -- 1) Check injectivity of K -> L
+  ktolSub <- toList $ checkInjective ktol
 
-||| Applies, if possible, the given simple rewrite rule to the graph.
-||| The index `i` select which subgraph to substitute. The index i must be
-||| provided before hand.
-||| @graph The graph to be matched
-||| @rule The simple rewrite rule
-||| @i The index of the subgraph to be rewritten
-singleRewrite : (graph : Graph n m {vertex = String} {edge = String} vs es)
-             -> (rule : Rewrite String String) -> (i : Nat)
-             -> Either RewriteError (ExGraph String String)
-singleRewrite {vs} g (MkRule l r k ktol ktor kmap) i = do
-  checkInjective "K" "L" ktol
-  (ktolMorph ** ktolPrf) <- findMorphism "K" "L" k l ktol
-  (ktorMorph ** ktorPrf) <- findMorphism "K" "R" k r ktor
+  -- 2) Find L in G
+  ltogSub <- match g l
 
-  (ltog', _) <- indexCheck i (match g l)
-  ltog <- convertVect "L" "G" ltog'
-  (ltogMorph ** ltogPrf) <- findMorphism "L" "G" l g ltog
-  let lsubset = vectToSubset ltog'
-  let ksubset = fromFins {xs = vs} $ toList $ ltog . ktol
-  let kedges = toList $ ltog .*. ktol .*. (edges k)
-  let (_ ** _ ** _ ** _ ** sub) = subgraph lsubset g
-  -- isIsomorphism l sub ltog
-  let (_ ** _ ** _ ** _ ** (d, dtog)) = gluedGraph lsubset ksubset kedges g
+  let (d ** dtog) = glued k l g ktol (toHomomorphism ltogSub)
 
-  ktod <- convertVect "K" "D" $ dtog .! ltog . ktol
-  (ktodMorph ** ktodPrf) <- findMorphism "K" "D" k d ktod
-  (dtogMorph ** dtogPrf) <- findMorphism "D" "G" d g dtog
+  ktodSub <- match d k
 
-  let (_ ** _ ** _ ** _ ** (h, rtoh, dtoh)) = merge (mergeMapping ktor ktod) d r
+  -- 6) Check commutativity
+  let Yes leftPrf = decEq ((toHomomorphism ltogSub) . ktol) (dtog . (toHomomorphism ktodSub))
+    | No _ => []
 
-  rtoh <- convertList "R" "H" rtoh
-  (rtohMorph ** rtohPrf) <- findMorphism "R" "H" r h rtoh
-  (dtohMorph ** dtohPrf) <- findMorphism "D" "H" d h dtoh
+  -- 7) Merge
+  (h ** rtoh ** dtoh ** rightPrf) <- toList $ merge k d r (toHomomorphism ktodSub) ktor vertexRelabel edgeRelabel
 
-  checkPath "K -> L -> G" "K -> D -> G" (ltog . ktol) (dtog . ktod)
-  checkPath "K -> R -> H" "K -> D -> H" (rtoh . ktor) (dtoh . ktod)
+  pure $ MkDoublePushout (MkRewriteRule l k r ktol ktor) g h d
+                         dtog dtoh
+                         (toHomomorphism ltogSub) (toHomomorphism ktodSub) rtoh
+                         leftPrf rightPrf
 
-  let dp = DP ltogPrf ktodPrf rtohPrf ktolPrf ktorPrf dtogPrf dtohPrf
+testl : Graph Int Int
+testl = MkGraph [0,1,2] [0,1,2] [0,0,2] [1,2,1]
 
-  pure (_ ** _ ** _ ** _ ** h)
+testk : Graph Int Int
+testk = MkGraph [3,4] [] [] []
+
+testr : Graph Int Int
+testr = MkGraph [5,6,7,8] [3,4,5,6] [0,0,2,3] [2,3,1,1]
+
+testg : Graph Int Int
+testg = MkGraph [9,10,11,12,13] [7,8,9,10,11,12] [0,0,2,1,0,4] [1,2,1,3,4,3]
+
+testktol : Homomorphism Simple.testk Simple.testl
+testktol = MkHomomorphism [0,1] [] Refl Refl
+
+testktor : Homomorphism Simple.testk Simple.testr
+testktor = MkHomomorphism [0,1] [] Refl Refl
+
+testrule : RewriteRule Int Int
+testrule = MkRewriteRule testl testk testr testktol testktor
+
+-- [MkDoublePushout
+--   (MkRewriteRule (MkGraph [0, 1, 2] [0, 1, 2] [0, 0, 2] [1, 2, 1])
+--                  (MkGraph [0, 1] [] [] [])
+--                  (MkGraph [0, 1, 2, 3] [0, 1, 2, 3] [0, 0, 2, 3] [2, 3, 1, 1])
+--                  (MkHomomorphism [0, 1] [] Refl Refl)
+--                  (MkHomomorphism [0, 1] [] Refl Refl))
+--   (MkGraph [0, 1, 2, 3, 4] [0, 1, 2, 3, 4, 5] [0, 0, 2, 1, 0, 4] [1, 2, 1, 3, 4, 3])
+--   (MkGraph [20, 30, 0, 1, 3, 4] [0, 10, 20, 30, 3, 4, 5] [2, 2, 0, 1, 3, 2, 5] [0, 1, 3, 3, 4, 5, 4])
+--   (MkGraph [0, 1, 3, 4] [3, 4, 5] [1, 0, 3] [2, 3, 2])
+--   (MkHomomorphism [0, 1, 3, 4] [3, 4, 5] Refl Refl)
+--   (MkHomomorphism [2, 3, 4, 5] [4, 5, 6] Refl Refl)
+--   (MkHomomorphism [0, 1, 2] [0, 1, 2] Refl Refl)
+--   (MkHomomorphism [0, 1] [] Refl Refl)
+--   (MkHomomorphism [2, 3, 0, 1] [0, 1, 2, 3] Refl Refl)
+--   Refl
+--   Refl]
+
+test : IO ()
+test = do
+  let res = singleRewrite testg testrule (id) (id)
+  for_ res $ \(MkDoublePushout (MkRewriteRule l k r ktol ktor) g h d dtog dtoh ltog ktod rtoh left right) => do
+    -- putStrLn $ toDot {id = "G"} g
+    -- putStrLn $ toDot {id = "H"} h
+    -- putStrLn $ toDot {id = "D"} d
+    putStrLn $ homToDot d g dtog "D" "G"
+    putStrLn $ homToDot d h dtoh "D" "H"

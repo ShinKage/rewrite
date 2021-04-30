@@ -1,6 +1,7 @@
 # ===== Idris =====
 *.ibc
 *.o
+build
 
 # ===== Vim =====
 # Swap
