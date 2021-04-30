@@ -1,5 +1,7 @@
 # Rewrite
 
+NOTE: The second iteration of the tool is available in the `idris2` branch and is implemented with Idris2 instead of Idris.
+
 A tool for directed graph rewriting, harnessing the power of dependent types for rule verification, with Idris.
 It supports simple rewrite rules, negative properties, interfaces and typed graphs.
 
