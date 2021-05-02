@@ -8,13 +8,7 @@ import Data.List.Pos
 import Data.Maybe
 import Decidable.Equality
 
--- %default covering
-
--- REFERENCE: https://networkx.github.io/documentation/latest/_modules/networkx/algorithms/isomorphism/isomorphvf2.html
-
--- ||| State of a VF2 computation.
--- ||| @n  Vertices number of the graph to search in
--- ||| @n' Vertices number of the graph to match
+||| State of a VF2 computation.
 public export
 record VF2State {0 vertex, vertex', edge, edge' : Type} (g : Graph vertex edge) (g' : Graph vertex' edge') where
   constructor MkState
@@ -26,19 +20,19 @@ record VF2State {0 vertex, vertex', edge, edge' : Type} (g : Graph vertex edge) 
   in_2   : CList g'.vertices Nat
   out_2  : CList g'.vertices Nat
 
--- -- ||| Initialize the state of a VF2 execution.
+||| Initialize the state of a VF2 execution.
 export
 initState : (g : Graph vertex edge) -> (g' : Graph vertex' edge') -> VF2State g g'
 initState g g' =
   MkState (length g.vertices) (initialize Nothing) (initialize Nothing)
           (initialize 0) (initialize 0) (initialize 0) (initialize 0)
 
--- ||| Update the state of a VF2 execution given a match between two vertices.
--- ||| @v1    Index of the vertex in the graph to search in
--- ||| @v2    Index of the vertex in the graph to match
--- ||| @g1    Graph to search in
--- ||| @g2    Graph to match
--- ||| @state Current VF2 state
+||| Update the state of a VF2 execution given a match between two vertices.
+||| @g1    Graph to search in
+||| @g2    Graph to match
+||| @v1    Index of the vertex in the graph to search in
+||| @v2    Index of the vertex in the graph to match
+||| @state Current VF2 state
 export
 updateState : (g1 : Graph vertex1 edge1) -> (g2 : Graph vertex2 edge2)
            -> (v1 : Vertex g1) -> (v2 : Vertex g2) -> (state : VF2State g1 g2)
@@ -158,13 +152,14 @@ feasibility g1 g2 v1 v2 state =
     && numPredNewFeasibility g1 g2 v1 v2 state
     && numSuccNewFeasibility g1 g2 v1 v2 state
 
--- ||| Search for subgraph isomorphism given a VF2 state. Returns the list of mapping
--- ||| from the subgraph to the graph and the partial inverse of each mapping.
--- ||| @g1    Graph to search in
--- ||| @g2    Graph to match
--- ||| @state Current VF2 state
+||| Search for subgraph isomorphism given an existing VF2 state.
+||| Returns the list of found subgraph relations.
+|||
+||| @g1 Graph to search in
+||| @g2 Graph to match
+||| @state A VF2 state
 export
-match' : (g1 : Graph vertex1 edge1) -> (g2 : Graph vertex2 edge2) -> VF2State g1 g2 -> List (Subgraph g2 g1)
+match' : (g1 : Graph vertex1 edge1) -> (g2 : Graph vertex2 edge2) -> (state : VF2State g1 g2) -> List (Subgraph g2 g1)
 match' g1 g2 state =
     if length (filter isJust $ forget state.core_1) == length g2.vertices
        then convert state.core_2
@@ -207,10 +202,10 @@ match' g1 g2 state =
            then match' g1 g2 (updateState g1 g2 v1 v2 state) ++ acc
            else acc
 
--- ||| Search for subgraph isomorphism. Returns the list of mapping from the subgraph to
--- ||| the graph and the partial inverse of each mapping.
--- ||| @g1 Graph to search in
--- ||| @g2 Graph to match
+||| Search for subgraph isomorphism. Returns the list of found subgraph relations.
+|||
+||| @g1 Graph to search in
+||| @g2 Graph to match
 export
 match : (g1 : Graph vertex1 edge1) -> (g2 : Graph vertex2 edge2) -> List (Subgraph g2 g1)
 match g1 g2 = match' g1 g2 (initState g1 g2)

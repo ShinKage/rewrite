@@ -21,6 +21,7 @@ record Morphism {0 vertex, vertex', edge, edge' : Type} (0 g : Graph vertex edge
   edgeMorphism   : ListMorphism g.edges g'.edges
 
 namespace Homomorphism
+  ||| Type for structure-preserving morphisms between graphs.
   public export
   record Homomorphism {0 vertex, vertex', edge, edge' : Type} (0 g : Graph vertex edge) (0 g' : Graph vertex' edge') where
     constructor MkHomomorphism

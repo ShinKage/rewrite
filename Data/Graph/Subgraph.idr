@@ -11,6 +11,8 @@ import Syntax.PreorderReasoning
 
 %default total
 
+||| Subgraph relation between two graphs,
+||| i.e. a function where the vertex mapping is injective.
 public export
 record Subgraph {0 svertex, sedge, vertex, edge : Type} (s : Graph svertex sedge) (g : Graph vertex edge) where
   constructor MkSubgraph
@@ -19,11 +21,13 @@ record Subgraph {0 svertex, sedge, vertex, edge : Type} (s : Graph svertex sedge
   0 isSourceHomomorphic : g.source . edgeMorphism = vertexMorphism.morphism . s.source
   0 isTargetHomomorphic : g.target . edgeMorphism = vertexMorphism.morphism . s.target
 
+||| Returns the morphism associated with the subgraph relation.
 public export
 toHomomorphism : Subgraph s g -> Homomorphism s g
 toHomomorphism (MkSubgraph vertexMorphism edgeMorphism isSourceHomomorphic isTargetHomomorphic) =
   MkHomomorphism vertexMorphism.morphism edgeMorphism isSourceHomomorphic isTargetHomomorphic
 
+||| Each graph is a subgraph of itself.
 public export
 identity : (g : Graph vertex edge) -> Subgraph g g
 identity g = MkSubgraph (identity g.vertices) (identity g.edges)
@@ -32,6 +36,7 @@ identity g = MkSubgraph (identity g.vertices) (identity g.edges)
                         (rewrite composeRightUnit g.target in
                          rewrite composeLeftUnit g.target in Refl)
 
+||| Returns the composition of two subgraphs.
 public export
 compose : {0 s1 : Graph svertex1 sedge1} -> {0 s2 : Graph svertex2 sedge2} -> {0 g : Graph vertex edge}
        -> Subgraph s2 g -> Subgraph s1 s2 -> Subgraph s1 g
@@ -54,11 +59,13 @@ compose (MkSubgraph vMor eMor sPrf tPrf) (MkSubgraph vMor' eMor' sPrf' tPrf') =
                 ~~ (vMor.morphism . vMor'.morphism) . s1.target ...(composeAssociative vMor.morphism vMor'.morphism s1.target)
                 ~~ (vMor . vMor').morphism . s1.target ...(cong (. s1.target) (composeDistributive vMor vMor')))
 
+||| Returns the composition of two subgraphs.
 public export
 (.) : {0 s1 : Graph svertex1 sedge1} -> {0 s2 : Graph svertex2 sedge2} -> {0 g : Graph vertex edge}
    -> Subgraph s2 g -> Subgraph s1 s2 -> Subgraph s1 g
 (.) = compose
 
+||| Removes a specific edge from a graph, producing the trivial subgraph relation.
 public export
 removeEdge : (g : Graph vertex edge) -> Edge g -> (g' : Graph vertex edge ** Subgraph g' g)
 removeEdge (MkGraph vertices edges source target) i =
@@ -71,6 +78,7 @@ removeEdge (MkGraph vertices edges source target) i =
                    rewrite composeRightUnit target in
                    rewrite composeLeftUnit (drop target i) in Refl))
 
+||| Adds an edge between two vertices, producing the trivial subgraph relation.
 public export
 addEdge : (g : Graph vertex edge) -> (e : edge) -> (s, t : Vertex g) -> (g' : Graph vertex edge ** Subgraph g g')
 addEdge (MkGraph vertices edges source target) e s t =
@@ -83,6 +91,7 @@ addEdge (MkGraph vertices edges source target) e s t =
                    rewrite shiftLemma {y = e} t target (identity edges) in
                    rewrite composeRightUnit target in Refl))
 
+||| Adds a new vertex to a graph, producing the trivial subgraph relation.
 public export
 addVertex : (g : Graph vertex edge) -> (v : vertex) -> (g' : Graph vertex edge ** Subgraph g g')
 addVertex (MkGraph vertices edges source target) v =
@@ -128,6 +137,8 @@ removeEdges (e :: edges) (s :: source) (t :: target) i with (decEq s i)
                           , rewrite shiftLemma {y = e} t target mor' in rewrite sym tPrf in rewrite sym $ applyIdentityDropLemma vertices i t contraTarget in Refl
                           ))
 
+||| Removes a vertex and all its connected edges from a graph, producing the
+||| trivial subgraph relation.
 public export
 removeVertex : (g : Graph vertex edge) -> Vertex g -> (g' : Graph vertex edge ** Subgraph g' g)
 removeVertex (MkGraph vertices edges source target) i =
@@ -135,6 +146,7 @@ removeVertex (MkGraph vertices edges source target) i =
       (MkGraph (drop vertices i) edges' source' target'
         ** MkSubgraph (drop (identity vertices) i) mor sPrf tPrf)
 
+||| Removes a set of vertices from a graph, producing the trivial subgraph relation.
 public export
 removeVertices : (g : Graph vertex edge) -> InjectiveListMorphism vertices' g.vertices -> (g' : Graph vertex edge ** Subgraph g' g)
 removeVertices g [] = (g ** identity g)
@@ -143,10 +155,13 @@ removeVertices (MkGraph vertices edges source target) (v :: vs) =
       (g' ** sub) = Subgraph.removeVertices (MkGraph (drop vertices v) edges' source' target') vs in
       (g' ** compose (MkSubgraph (drop (identity vertices) v) mor sPrf tPrf) sub)
 
+||| Removes a subgraph from a gpraph, producing the trivial subgraph relation
+||| from the remaining vertices.
 public export
 removeSubgraph : {0 s : Graph svertex sedge} -> (g : Graph vertex edge) -> Subgraph s g -> (g' : Graph vertex edge ** Subgraph g' g)
 removeSubgraph g (MkSubgraph vMor eMor sPrf tPrf) = removeVertices g (getInjective vMor)
 
+-- TODO: check if useful
 public export
 append : (g1, g2 : Graph vertex edge) -> (h : Graph vertex edge ** (Subgraph g1 h, Subgraph g2 h))
 append (MkGraph v1 e1 s1 t1) (MkGraph v2 e2 s2 t2) =
@@ -155,6 +170,7 @@ append (MkGraph v1 e1 s1 t1) (MkGraph v2 e2 s2 t2) =
        , MkSubgraph (identityExtLeft v1 v2) (identityExtLeft e1 e2) ?fdsfasdf ?fsaklhaklsfh)
        )
 
+||| Adding an edge to both graph in a subgraph relation, preserves the relation.
 public export
 subgraphEdgeAppendLemma : (sub : Subgraph (MkGraph vs es' ss' ts') (MkGraph vs es ss ts))
                        -> sub.vertexMorphism.morphism = identity vs

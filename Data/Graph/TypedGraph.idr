@@ -5,12 +5,14 @@ import public Data.Graph.Morphism
 
 %default total
 
+||| Type for simple typed directed (hyper-)graphs.
 public export
 record TypedGraph {0 typeVertex, typeEdge : Type} (0 vertex, edge : Type) (0 type : Graph typeVertex typeEdge) where
   constructor MkTypedGraph
   graph : Graph vertex edge
   typeness : Homomorphism graph type
 
+||| Type for structure-preserving morphisms between typed graphs.
 public export
 record Homomorphism {0 vertex, vertex', typeVertex, edge, edge', typeEdge : Type}
                     {0 type : Graph typeVertex typeEdge}
@@ -20,6 +22,7 @@ record Homomorphism {0 vertex, vertex', typeVertex, edge, edge', typeEdge : Type
   0 vertexTypeComposition : g'.typeness.vertexMorphism . morphism.vertexMorphism = g.typeness.vertexMorphism
   0 edgeTypeComposition : g'.typeness.edgeMorphism . morphism.edgeMorphism = g.typeness.edgeMorphism
 
+||| Composes two morphisms between typed graphs.
 public export
 compose : {0 type : Graph tvertex tedge} -> {0 g1 : TypedGraph vertex1 edge1 type} -> {0 g2 : TypedGraph vertex2 edge2 type} -> {0 g3 : TypedGraph vertex3 edge3 type}
        -> Homomorphism g2 g3 -> Homomorphism g1 g2 -> Homomorphism g1 g3
@@ -32,11 +35,13 @@ compose f g =
                   rewrite f.edgeTypeComposition in
                   rewrite g.edgeTypeComposition in Refl)
 
+||| Composes two morphisms between typed graphs.
 public export
 (.) : {0 type : Graph tvertex tedge} -> {0 g1 : TypedGraph vertex1 edge1 type} -> {0 g2 : TypedGraph vertex2 edge2 type} -> {0 g3 : TypedGraph vertex3 edge3 type}
    -> Homomorphism g2 g3 -> Homomorphism g1 g2 -> Homomorphism g1 g3
 (.) = compose
 
+||| Returns the identity morphism for a given typed graph.
 public export
 identity : (g : TypedGraph vertex edge type) -> Homomorphism g g
 identity g =
@@ -44,6 +49,7 @@ identity g =
                  (rewrite composeRightUnit g.typeness.vertexMorphism in Refl)
                  (rewrite composeRightUnit g.typeness.edgeMorphism in Refl)
 
+||| Proof that that composition is associative for typed graph morphisms.
 public export
 composeAssociative : {0 type : Graph tvertex tedge} -> {0 g1 : TypedGraph vertex1 edge1 type} -> {0 g2 : TypedGraph vertex2 edge2 type}
                   -> {0 g3 : TypedGraph vertex3 edge3 type} -> {0 g4 : TypedGraph vertex4 edge4 type}
@@ -53,6 +59,7 @@ composeAssociative f g h =
   rewrite composeAssociative f.morphism.vertexMorphism g.morphism.vertexMorphism h.morphism.vertexMorphism in
   rewrite composeAssociative f.morphism.edgeMorphism g.morphism.edgeMorphism h.morphism.edgeMorphism in Refl
 
+||| Proof that identity is the left unit of composition for typed graph morphisms.
 public export
 composeLeftUnit : {0 type : Graph tvertex tedge} -> {0 g : TypedGraph vertex edge type} -> {0 g' : TypedGraph vertex' edge' type}
                -> (f : Homomorphism g g')
@@ -62,6 +69,7 @@ composeLeftUnit f =
   rewrite composeLeftUnit f.morphism.edgeMorphism in believe_me {a = f = f} Refl
     -- TODO: Find a way to match on the proofs inside f
 
+||| Proof that identity is the right unit of composition for typed graph morphisms.
 public export
 composeRightUnit : {0 type : Graph tvertex tedge} -> {0 g : TypedGraph vertex edge type} -> {0 g' : TypedGraph vertex' edge' type}
                 -> (f : Homomorphism g g')

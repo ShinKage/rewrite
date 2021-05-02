@@ -7,6 +7,7 @@ import public Data.Graph.TypedGraph
 
 %default total
 
+||| Simple rewrite rule: L ← K → R
 public export
 record RewriteRule vertex edge where
   constructor MkRewriteRule
@@ -16,6 +17,8 @@ record RewriteRule vertex edge where
   glueToPreMorphism : Homomorphism glue pre
   glueToPostMorphism : Homomorphism glue post
 
+||| Negative rewrite rule: N ← L ← K → R
+||| where N must not appear in the input.
 public export
 record NegRewriteRule vertex edge where
   constructor MkNegRewriteRule
@@ -27,6 +30,11 @@ record NegRewriteRule vertex edge where
   glueToPostMorphism : Homomorphism glue post
   preToNegMorphism : Homomorphism pre neg
 
+||| Simple Double Pushout
+||| L ← K → R
+||| ↓   ↓   ↓
+||| G ← D → H
+||| where the two squares are pushouts.
 public export
 record DoublePushout vertex edge where
   constructor MkDoublePushout
@@ -42,6 +50,11 @@ record DoublePushout vertex edge where
   0 preComposition : preMorphism . rule.glueToPreMorphism = glueToFromMorphism . glueMorphism
   0 postComposition : postMorphism . rule.glueToPostMorphism = glueToToMorphism . glueMorphism
 
+||| Negative Double Pushout
+||| N ← L ← K → R
+|||     ↓   ↓   ↓
+|||     G ← D → H
+||| where the two squares are pushouts and there must not exist a N → G morphism.
 public export
 record DoublePushoutNeg vertex edge where
   constructor MkDoublePushoutNeg
@@ -56,6 +69,12 @@ record DoublePushoutNeg vertex edge where
   postMorphism : Homomorphism rule.post to
   0 dontPreserve : Not (Homomorphism rule.neg from)
 
+||| Double Pushout with Interface
+||| L ← K → R
+||| ↓   ↓   ↓
+||| G ← D → H
+|||   ↖ ↑ ↗
+|||     J
 public export
 record DoublePushoutInterface vertex edge where
   constructor MkDoublePushoutInterface
@@ -67,6 +86,7 @@ record DoublePushoutInterface vertex edge where
   0 preComposition : interfaceToFromMorphism = pushout.glueToFromMorphism . interfaceToGlueMorphism
   0 postComposition : interfaceToToMorphism = pushout.glueToToMorphism . interfaceToGlueMorphism
 
+||| Simple rewrite rule for Typed Graphs: L ← K → R
 public export
 record TypedRewriteRule vertex edge (0 type : Graph vertex edge) where
   constructor MkTypedRewriteRule
@@ -76,6 +96,11 @@ record TypedRewriteRule vertex edge (0 type : Graph vertex edge) where
   glueToPreMorphism : Homomorphism glue pre
   glueToPostMorphism : Homomorphism glue post
 
+||| Simple Double Pushout for Typed Graphs
+||| L ← K → R
+||| ↓   ↓   ↓
+||| G ← D → H
+||| where the two squares are pushouts.
 public export
 record TypedDoublePushout vertex edge (0 type : Graph vertex edge) where
   constructor MkTypedDoublePushout
